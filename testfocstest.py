@@ -28,5 +28,25 @@ class TestTextNormalization(unittest.TestCase):
                 normalize_whitespace(generated))
 
 
+class TestOcamlReplParsing(unittest.TestCase):
+    error = \
+        "Characters 0-9:\n" \
+        "failworth \"Not implemented\"\n" \
+        "^^^^^^^^^\n" \
+        "Error: Unbound value failworth\n" \
+        "Hint: Did you mean failwith?"
+    exception = "Exception: Failure \"Not Implemented\"."
+    printed = "foo\nbar\n- : unit = ()"
+    unknown = "foo\nbar"
+
+    def test_is_error(self):
+        true_cases = (self.error, self.exception)
+        false_cases = (self.printed, self.unknown)
+        for case in true_cases:
+            self.assertTrue(focstest.is_error(case))
+        for case in false_cases:
+            self.assertFalse(focstest.is_error(case))
+
+
 if __name__ == '__main__':
     unittest.main()

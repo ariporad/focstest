@@ -78,24 +78,98 @@ def get_tests(text):
     return tests
 
 
-def _run_ocaml_code(code):
-    """Run a line of ocaml with the REPL and capture the output.
+def _run_ocaml_code(code, timeout=5):
+    """Run ocaml code with the REPL and capture the output.
+
+    `code` should generally cause the repl to exit, or a TimeoutExpired
+    exception will be raised.
 
     :param code: string of code to run
-    :returns: tuple of strings with format (output, errors)
+    :returns: tuple of raw stdout and stderr strings (output, errors)
     """
-    with subprocess.Popen(['ocaml'],
+    # -noinit disables loading the init file
+    # unsetting TERM prevents ocaml from returning escape characters
+    env = os.environ.copy()
+    env.pop('TERM', None)
+    with subprocess.Popen(['ocaml', '-noinit'],
+                          env=env,
                           stdin=subprocess.PIPE,
                           stdout=subprocess.PIPE,
                           stderr=subprocess.PIPE,
                           universal_newlines=True) as p:
         try:
-            outs, errs = p.communicate(code, timeout=5)
-        except subprocess.TimeoutExpired:
+            outs, errs = p.communicate(code, timeout)
+        except subprocess.TimeoutExpired as e:
             p.kill()
             outs, errs = p.communicate()
             logger.warning('Ocaml process timed out: {} {}'.format(outs, errs))
+            raise e
     return (outs, errs)
+
+
+# TODO: this
+# class OcamlError(Exception):
+# class UnimplementedException(OcamlError)
+
+
+def is_error(output):
+    """Returns True if `output` is Ocaml Error or Exception, False otherwise."""
+    keywords = ('Error:', 'Exception: ')
+    return any(k in output for k in keywords)
+
+
+def parse_error(output):
+    pass
+
+
+def run_ocaml_code(code, files=()):
+    """Returns parsed output after loading `files` and running `code`.
+
+    Raises a ValueError if `code` is a syntactically-correct but incomplete
+        Ocaml expression.
+
+    Raises an `OcamlError` if during the execution of `code`:
+        - an Ocaml error occurs
+        - an Ocaml exception is raised
+
+    Raises an `UnimplementedException` if it recognizes a 'not implemented'
+        exception, commonly used by FoCS HW that haven't been finished yet.
+
+    Returns the output of `code`, which should include any printed outut and the
+        type expression.
+    """
+    # TODO: return errors/exceptions from files or code, or str of output
+    cmds = []
+    for file in files:
+        cmds.insert(0, '#use "{}";;'.format(file))
+    cmds.append('#quit;;\n')  # add a quit command at the end to exit from the repl
+
+    outs, errs = _run_ocaml_code('\n'.join(cmds))
+    # Before each input, ocaml spits out a `# ` (the interactive prompt).
+    # Here, it is used to separate prints/return values from statements.
+    matches = list(map(lambda a: a.strip(), outs.split('# ')))
+    # matches should line up to be:
+    # startup text | [ file output | ... ] code output | quit whitespace
+    # first match is everything printed on startup, generally just version info
+    # last match is the remaining whitespace after the `#quit;;` command, unless
+    # something went wrong]
+    expected = 1 + len(files) + 2
+    logger.debug('Found %s matches, expected %s', len(matches), expected)
+
+    if len(matches) != expected:
+        # look for reasons why it failed
+        # the issue should be with the code statement
+        # #use statements may return errors, but they should still evaluate
+        raise ValueError("Couldn't evaluate code {!r}: {!r}".format(code, matches[-1]))
+
+    # TODO: parse for errors, exceptions in all outputs
+    # Exception:
+    # Hint:
+    # Error:
+    # Characters:
+
+
+    return matches[-2]
 
 
 # text normalization techniques

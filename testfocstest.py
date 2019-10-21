@@ -40,12 +40,12 @@ class TestOcamlReplParsing(unittest.TestCase):
     unknown = "foo\nbar"
 
     def test_is_error(self):
-        true_cases = (self.error, self.exception)
-        false_cases = (self.printed, self.unknown)
-        for case in true_cases:
-            self.assertTrue(focstest.is_error(case))
-        for case in false_cases:
-            self.assertFalse(focstest.is_error(case))
+        are_errors = (self.error, self.exception)
+        not_errors = (self.printed, self.unknown)
+        for case in are_errors:
+            self.assertIsNotNone(focstest.parse_error(case))
+        for case in not_errors:
+            self.assertIsNone(focstest.parse_error(case))
 
 
 if __name__ == '__main__':

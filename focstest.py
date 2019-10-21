@@ -107,19 +107,25 @@ def _run_ocaml_code(code, timeout=5):
     return (outs, errs)
 
 
-# TODO: this
-# class OcamlError(Exception):
-# class UnimplementedException(OcamlError)
+class OcamlError(Exception):
+    pass
 
 
-def is_error(output):
-    """Returns True if `output` is Ocaml Error or Exception, False otherwise."""
-    keywords = ('Error:', 'Exception: ')
-    return any(k in output for k in keywords)
+class UnimplementedException(OcamlError):
+    pass
 
 
 def parse_error(output):
-    pass
+    """Check a section of Ocaml output for errors/exceptions.
+
+    Returns the text of an error (potentially) if `output` is an Ocaml Error or
+        Exception, None otherwise.
+    """
+    keywords = ('Error:', 'Exception:')  # what to look for at the beginning of lines
+    for k in keywords:
+        loc = output.find(k)
+        if loc != -1:
+            return output[loc:]
 
 
 def run_ocaml_code(code, files=()):
@@ -135,7 +141,7 @@ def run_ocaml_code(code, files=()):
     Raises an `UnimplementedException` if it recognizes a 'not implemented'
         exception, commonly used by FoCS HW that haven't been finished yet.
 
-    Returns the output of `code`, which should include any printed outut and the
+    Returns the output of `code`, which should include any printed output and the
         type expression.
     """
     # TODO: return errors/exceptions from files or code, or str of output
@@ -162,12 +168,11 @@ def run_ocaml_code(code, files=()):
         # #use statements may return errors, but they should still evaluate
         raise ValueError("Couldn't evaluate code {!r}: {!r}".format(code, matches[-1]))
 
-    # TODO: parse for errors, exceptions in all outputs
-    # Exception:
-    # Hint:
-    # Error:
-    # Characters:
-
+    # parse for errors, exceptions in all outputs
+    for output in outs:
+        match = parse_error(output)
+        if match is not None:
+            raise OcamlError(match)
 
     return matches[-2]
 
@@ -205,28 +210,16 @@ def run_test(code: str, expected_out: str, file: str = None):
         strip_whitespace,
         normalize_whitespace
     ]
-    if file is not None:
-        command = '#use "{}";;\n'.format(file) + code
-    else:
-        command = code
-    command += "\n#quit;;"
-    outs, errs = _run_ocaml_code(command)
-    matches = outs.split('# ')[1:]  # TODO: check if this should change based on the presence of a file
-    if len(matches) != 3 and file is not None:
-        logger.warning("Unable to parse ocaml output, expected 2 matches, got {}".format(len(matches)))
-    elif len(matches) != 2 and file is None:
-        logger.error("Unable to parse ocaml output, expected 1 match, got {} ".format(len(matches)))
-    else:
-        # compare strings
-        output = matches[-2]  # don't use empty final match from #quit;;
-        for step in steps:
-            function = code.split()[0]  # grab the first word of the command (probably the function name)
-            method = step.__name__
-            result = step(output) == step(expected_out)
-            if result is True:
-                logger.debug('Test {!r} passed with method {!r}'.format(function, method))
-                break
-        return (result, output, method)
+
+    output = run_ocaml_code(code, files=(file,))
+    for step in steps:
+        function = code.split()[0]  # grab the first word of the command (probably the function name)
+        method = step.__name__
+        result = step(output) == step(expected_out)
+        if result is True:
+            logger.debug('Test {!r} passed with method {!r}'.format(function, method))
+            break
+    return (result, output, method)
 
 
 def get_test_str(test_input: str, test_output: str, expected: str,

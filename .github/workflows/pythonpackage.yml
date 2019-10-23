@@ -21,7 +21,7 @@ jobs:
       run: |
         sudo apt install ocaml -y
         pip install pipenv
-        pipenv install --dev
+        pipenv install --dev --system
     - name: Test with unittest
       run: |
         pipenv run python -m unittest discover -v

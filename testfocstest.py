@@ -3,8 +3,14 @@ import unittest
 import doctest
 
 import focstest
-from focstest import equivalent, strip_whitespace, normalize_whitespace
-
+from focstest import (
+    equivalent,
+    strip_whitespace,
+    normalize_whitespace,
+    run_ocaml_code,
+    OcamlError,
+    UnimplementedException,
+)
 
 def load_tests(loader, tests, ignore):
     # run doctests from within unittest
@@ -46,6 +52,33 @@ class TestOcamlReplParsing(unittest.TestCase):
             self.assertIsNotNone(focstest.parse_error(case))
         for case in not_errors:
             self.assertIsNone(focstest.parse_error(case))
+
+
+class TestRunOcaml(unittest.TestCase):
+    """Test return values from running Ocaml.
+
+    Note: these require `ocaml` to be installed on the system.
+    """
+
+    def test_invalid_ocaml_code(self):
+        for code, error in [
+            ('[1;2]', ValueError),  # valid statement without `;;`
+            ('[1;2;;', OcamlError),  # incomplete expression
+            ('a_func 1;;', OcamlError),  # undefined function
+            # and now a variety of user-defined unimplemented exceptions
+            *(('failwith "{}";;'.format(s), UnimplementedException) for s in
+                ('Unimplemented', 'unimplemented', 'Not implemented')),
+        ]:
+            with self.assertRaises(error):
+                run_ocaml_code(code)
+
+    def test_valid_ocaml(self):
+        for code, output in (
+            ('1;;', '- : int = 1'),
+            ('"foo";;', '- : string = "foo"'),
+            ('[1;2];;', '- : int list = [1; 2]'),
+        ):
+            self.assertEqual(output, run_ocaml_code(code))
 
 
 if __name__ == '__main__':

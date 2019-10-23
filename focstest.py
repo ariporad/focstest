@@ -125,6 +125,13 @@ def parse_error(output):
     for k in keywords:
         loc = output.find(k)
         if loc != -1:
+            # try to grab the entire error message w/ context
+            start = output.rfind('Characters', 0, loc)
+            if start != -1:
+                return output[start:]
+            start = output.rfind('File', 0, loc)
+            if start != -1:
+                return output[start:]
             return output[loc:]
 
 
@@ -144,8 +151,7 @@ def run_ocaml_code(code, files=()):
     Returns the output of `code`, which should include any printed output and the
         type expression.
     """
-    # TODO: return errors/exceptions from files or code, or str of output
-    cmds = []
+    cmds = [code]
     for file in files:
         cmds.insert(0, '#use "{}";;'.format(file))
     cmds.append('#quit;;\n')  # add a quit command at the end to exit from the repl
@@ -153,7 +159,7 @@ def run_ocaml_code(code, files=()):
     outs, errs = _run_ocaml_code('\n'.join(cmds))
     # Before each input, ocaml spits out a `# ` (the interactive prompt).
     # Here, it is used to separate prints/return values from statements.
-    matches = list(map(lambda a: a.strip(), outs.split('# ')))
+    matches = [m.strip() for m in outs.split('# ')]
     # matches should line up to be:
     # startup text | [ file output | ... ] code output | quit whitespace
     # first match is everything printed on startup, generally just version info
@@ -169,10 +175,18 @@ def run_ocaml_code(code, files=()):
         raise ValueError("Couldn't evaluate code {!r}: {!r}".format(code, matches[-1]))
 
     # parse for errors, exceptions in all outputs
-    for output in outs:
-        match = parse_error(output)
-        if match is not None:
-            raise OcamlError(match)
+    for output in matches:
+        err = parse_error(output)
+        if err is None:
+            continue
+        # try to find incomplete expressions for `code`
+        if err.find('It has no method quit') != -1:
+            raise ValueError('Incomplete Ocaml Expression: {!r}'.format(code))
+        # catch a variety of `unimplemented`-like `failwith`s
+        if err.lower().find('implemented') != -1:
+            raise UnimplementedException('{}: {!r}'.format(err, code))
+        else:
+            raise OcamlError(err)
 
     return matches[-2]
 

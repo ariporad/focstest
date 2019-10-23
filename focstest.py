@@ -378,23 +378,34 @@ def main():
         if args.verbose:
             print('Testing suite {}'.format(j))
         for k, (test, expected_output) in enumerate(suite):
-            res = run_test(test, expected_output, file=FILE)
             header_temp = ' test {} of {} in suite {}'.format(k+1, len(suite), j)
+            try:
+                res = run_test(test, expected_output, file=FILE)
+            except UnimplementedException as e:
+                # skip unimplemented suites
+                if args.verbose:
+                    print(colored('Unimplemented'+header_temp, 'yellow'))
+                    print(test_str)
+                num_skipped += len(suite) - (k + 1)
+                print(colored('Skipped unimplemented suite {} {!r}'.format(j, function), 'yellow'))
+                break
+            except ValueError as e:
+                # skip tests that can't be run
+                print(colored('Unable to run test {!r}: {}'.format(test, OcamlError), 'yellow'))
+                continue
+            except OcamlError as e:
+                # break everything on other Ocaml errors
+                print(colored("Ocaml returned the following error:", 'red'))
+                print(e)
+                sys.exit(1)
             if res is None:  # skip unparsable texts
-                print(colored('Skipped'+header_temp+': Unable to parse output','yellow'))
+                print(colored('Skipped'+header_temp+': Unable to parse output', 'yellow'))
                 continue
             else:
                 result, output, method = res
             test_str = get_test_str(test, output, expected_output)
             function = test.split()[0]
             if result is False:
-                if output.strip().lower() == 'exception: failure "not implemented".':
-                    if args.verbose:
-                        print(colored('Unimplemented'+header_temp, 'yellow'))
-                        print(test_str)
-                    num_skipped += len(suite) - (k + 1)
-                    print(colored('Skipped unimplemented suite {} {!r}'.format(j, function), 'yellow'))
-                    break
                 num_failed += 1
                 print(colored('Failed'+header_temp, 'red'))
                 print(test_str)

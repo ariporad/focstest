@@ -24,7 +24,7 @@ jobs:
         pipenv install --dev --system
     - name: Test with unittest
       run: |
-        pipenv run python -m unittest discover -v
+        python -m unittest discover -v
     - name: Install with pip
       run: |
         pip install .

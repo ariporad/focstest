@@ -4,6 +4,7 @@ import doctest
 
 import focstest
 from focstest import (
+    get_tests,
     equivalent,
     strip_whitespace,
     normalize_whitespace,
@@ -12,11 +13,35 @@ from focstest import (
     UnimplementedException,
 )
 
+
 def load_tests(loader, tests, ignore):
     # run doctests from within unittest
     # see: <https://docs.python.org/3/library/doctest.html#unittest-api>
     tests.addTests(doctest.DocTestSuite(focstest))
     return tests
+
+
+class TestTestParsing(unittest.TestCase):
+
+    def test_funky_tests(self):
+        text = '\n'.join((
+            '# run tm_q2_not "0#1";; ',
+            'start  [>] 0  #  1',
+            '- : bool = true',
+            '# run tm_q2_not "000#111";;',
+            'start  [>] 0  0  0  #  1  1  1',
+            '- : bool = true',
+        ))
+        res = get_tests(text)
+        self.assertEqual(2, len(res))
+        self.assertEqual(
+            ('run tm_q2_not "0#1";;', 'start  [>] 0  #  1\n- : bool = true'),
+            res[0]
+        )
+        self.assertEqual(
+            ('run tm_q2_not "000#111";;', 'start  [>] 0  0  0  #  1  1  1\n- : bool = true'),
+            res[1]
+        )
 
 
 class TestTextNormalization(unittest.TestCase):

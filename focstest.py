@@ -37,7 +37,7 @@ HTML_FILE_TEMPLATE = "homework{}.html"  # template to build the html filename gi
 CODE_BLOCK_SELECTOR = 'pre code'  # css selector to get code blocks
 
 # regex patterns for parsing text
-TEST_PATTERN = "^(.+;;)\n(.*)$"  # pattern to get input and output
+TEST_PATTERN = "^# (.+;;) *\n(.*)$"  # pattern to get input and output
 OCAML_PATTERN = "^(.*)"  # pattern to grab output of lines
 
 # compile regexes ahead of time
@@ -65,16 +65,18 @@ def get_tests(text):
 
     :returns: list of test tuples with format (input, expected, output)
     """
-    def get_test(text):
-        return TEST_COMP.match(text)
-    test_strs = text.split('# ')[1:]
     tests = []
-    for test_str in test_strs:
-        test = get_test(test_str)
-        if test is None:
-            logger.error('Test/response pattern {!r} returned no matches from string {!r}'.format(TEST_PATTERN, test_str))
-        else:
-            tests.append((test.group(1).strip(), test.group(2).strip()))
+    # iteratively match through the text
+    while text != '':
+        eot = text.find('\n# ')
+        if eot == -1:
+            eot = None
+        match = TEST_COMP.match(text[0:eot])
+        if match is None:
+            logger.error("Couldn't parse test {!r}".format(text))
+            break
+        tests.append(tuple(txt.strip() for txt in match.groups()))
+        text = text[match.end()+1:]
     return tests
 
 

@@ -397,8 +397,8 @@ def main():
                 continue
             except OcamlError as e:
                 # break everything on other Ocaml errors
-                print(colored("Ocaml returned the following error:", 'red'))
-                print(e)
+                print(colored("Ocaml returned the following error:", 'red', attrs=['bold']))
+                print(colored(e, 'red'))
                 sys.exit(1)
             if res is None:  # skip unparsable texts
                 print(colored('Skipped'+header_temp+': Unable to parse output', 'yellow'))

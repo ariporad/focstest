@@ -67,6 +67,7 @@ def get_tests(text):
     """
     tests = []
     # iteratively match through the text
+    text = text[text.find('# '):]
     while text != '':
         eot = text.find('\n# ')
         if eot == -1:
@@ -377,10 +378,13 @@ def main():
 
     print('Starting tests')
     for j, suite in test_suites:
+        # for each test suite:
         if args.verbose:
             print('Testing suite {}'.format(j))
         for k, (test, expected_output) in enumerate(suite):
+            # for each test:
             header_temp = ' test {} of {} in suite {}'.format(k+1, len(suite), j)
+            function = test.split()[0]
             try:
                 res = run_test(test, expected_output, file=FILE)
             except UnimplementedException as e:
@@ -406,7 +410,6 @@ def main():
             else:
                 result, output, method = res
             test_str = get_test_str(test, output, expected_output)
-            function = test.split()[0]
             if result is False:
                 num_failed += 1
                 print(colored('Failed'+header_temp, 'red'))

@@ -34,7 +34,11 @@ OCAML_FILE_PATTERN = r"homework(\d{1,2}).ml"  # pattern to pass the user-given o
 HTML_FILE_TEMPLATE = "homework{}.html"  # template to build the html filename given a homework number
 
 # selectors for parsing html
-CODE_BLOCK_SELECTOR = 'pre code'  # css selector to get code blocks
+CODE_BLOCK_SELECTOR = ', '.join((  # css selector to get code blocks
+    # these are individual patterns (OR'd together)
+    'div.code pre',  # Fall 2018
+    'pre code',  # Fall 2019
+))
 
 # regex patterns for parsing text
 TEST_PATTERN = r"^# (.+;;) *\n(.*)$"  # pattern to get input and output

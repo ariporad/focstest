@@ -278,6 +278,54 @@ def infer_url(filepath):
     return url
 
 
+def get_cache_dir():
+    """Determine the path of a valid cache directory."""
+    temp_dir = tempfile.gettempdir()  # most likely /tmp/ on Linux
+    cache_dir = os.path.join(temp_dir, 'focstest-cache')
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+        logger.info('Created cache directory at {!r}'.format(cache_dir))
+    return cache_dir
+
+
+def get_html_from_url(url: str, use_cached: bool = False) -> str:
+    """Get an html from a url, with a filesystem cache.
+
+    Args:
+        url: The url to fetch from.
+        use_cached: Whether to use a cached version, if it exists.
+
+    Returns: A string with the contents of the html file.
+    """
+    cache_dir = get_cache_dir()
+
+    page_name = os.path.basename(urllib.parse.urlparse(url).path)  # get page name from url
+    if page_name == '':
+        page_name = 'index.html'
+    html_filepath = os.path.join(cache_dir, page_name)  # local filepath
+
+    # get webpage if cached version doesn't already exist
+    if not os.path.isfile(html_filepath) or not use_cached:
+        response = requests.get(url)
+        if response.status_code != 200:  # break if webpage can't be fetched
+            # TODO: raise an exception instead
+            logger.critical("Unable to fetch url {}: Status {}: {}".format(
+                url,
+                response.status_code,
+                response.reason))
+            sys.exit(1)
+        # write to file and continue
+        html = response.text
+        with open(html_filepath, 'w') as htmlcache:
+            htmlcache.write(html)
+            logger.debug("Saved {!r} to cache at {!r}".format(url, html_filepath))
+    else:
+        logger.debug("Using cached version of page at {!r}".format(html_filepath))
+        with open(html_filepath, 'r') as htmlcache:
+            html = htmlcache.read()
+    return html
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Run ocaml "doctests".',
@@ -286,6 +334,8 @@ def main():
     input_types = parser.add_mutually_exclusive_group(required=False)
     input_types.add_argument('--url', type=str,
                              help='a url to scrape tests from (usually automagically guessed from ocaml-file)')
+    input_types.add_argument('--file', type=str,
+                             help='a local html file to scrape tests from')
     parser.add_argument('ocaml-file', type=str,
                         help='the ocaml file to test against')
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -314,41 +364,24 @@ def main():
     URL = args.url
     FILE = getattr(args, 'ocaml-file')
 
-    if not args.url:
-        url_guess = infer_url(FILE)
-        if not url_guess:  # break if filename can't be matched
-            logger.critical('Could not infer url from filename {!r}. Try passing a url manually with the `--url` flag.'.format(FILE))
-            sys.exit(1)
-        else:
-            URL = url_guess
-
-    # get and cache webpage
-    temp_dir = tempfile.gettempdir()  # most likely /tmp/ on Linux
-    CACHE_DIR = os.path.join(temp_dir, 'focstest-cache')
-    if not os.path.exists(CACHE_DIR):
-        os.makedirs(CACHE_DIR)
-        logger.info('Created cache directory at {!r}'.format(CACHE_DIR))
-    page_name = os.path.basename(urllib.parse.urlparse(URL).path)  # get page name from url
-    html_filepath = os.path.join(CACHE_DIR, page_name)  # local filepath
-
-    # get webpage if cached version doesn't already exist
-    if not os.path.isfile(html_filepath) or args.update_cache:
-        response = requests.get(URL)
-        if response.status_code != 200:  # break if webpage can't be fetched
-            logger.critical("Unable to fetch url {}: Status {}: {}".format(
-                URL,
-                response.status_code,
-                response.reason))
-            sys.exit(1)
-        # write to file and continue
-        html = response.text
-        with open(html_filepath, 'w') as htmlcache:
-            htmlcache.write(html)
-            logger.debug("Saved {!r} to cache at {!r}".format(URL, html_filepath))
+    if not args.file:
+        # use or guess url
+        if not args.url:
+            url_guess = infer_url(FILE)
+            if not url_guess:  # break if filename can't be matched
+                logger.critical('Could not infer url from filename {!r}. Try passing a url manually with the `--url` flag.'.format(FILE))
+                sys.exit(1)
+            else:
+                URL = url_guess
+        html = get_html_from_url(URL)
     else:
-        logger.debug("Using cached version of page at {!r}".format(html_filepath))
-        with open(html_filepath, 'r') as htmlcache:
-            html = htmlcache.read()
+        # try to read file
+        try:
+            with open(args.file) as f:
+                html = f.read()
+        except Exception as e:
+            logging.critical("Couldn't open html file: %s", e)
+            sys.exit(1)
 
     # parse for code blocks
     # TODO: get titles/descriptions from code blocks
